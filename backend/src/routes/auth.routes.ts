@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import authController from '../controllers/auth.controller';
+import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -22,14 +23,14 @@ router.post('/login', authController.login.bind(authController));
  * @desc    Logout user
  * @access  Private (requires authentication)
  */
-router.post('/logout', authController.logout.bind(authController));
+router.post('/logout', authenticate, authController.logout.bind(authController));
 
 /**
  * @route   GET /api/v1/auth/me
  * @desc    Get current user profile
  * @access  Private (requires authentication)
  */
-router.get('/me', authController.getProfile.bind(authController));
+router.get('/me', authenticate, authController.getProfile.bind(authController));
 
 /**
  * @route   POST /api/v1/auth/refresh
