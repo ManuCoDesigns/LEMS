@@ -50,6 +50,12 @@ enum SchoolStatus {
   SUSPENDED
 }
 
+enum SubjectCategory {
+  CORE
+  ELECTIVE
+  CO_CURRICULAR
+}
+
 // ============================================
 // USER MANAGEMENT
 // ============================================
@@ -87,6 +93,14 @@ model User {
   schoolId String?
   school   School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
 
+  // Class Relations (Students)
+  classId String?
+  class   Class?  @relation("ClassStudents", fields: [classId], references: [id], onDelete: SetNull)
+
+  // Teaching Relations (Teachers)
+  teachingSubjects TeacherSubject[]
+  teachingClasses  ClassTeacher[]
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -94,6 +108,7 @@ model User {
   @@index([schoolId])
   @@index([email])
   @@index([role])
+  @@index([classId])
   @@map("users")
 }
 
@@ -139,6 +154,8 @@ model School {
   users         User[]
   departments   Department[]
   academicYears AcademicYear[]
+  classes       Class[]
+  subjects      Subject[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -162,6 +179,8 @@ model Department {
   // Relations
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  subjects Subject[]
 
   // Head of Department
   hodName  String?
@@ -192,7 +211,8 @@ model AcademicYear {
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  terms Term[]
+  terms   Term[]
+  classes Class[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -226,6 +246,153 @@ model Term {
   @@index([academicYearId])
   @@index([isCurrent])
   @@map("terms")
+}
+
+// ============================================
+// CLASS MANAGEMENT
+// ============================================
+
+model Class {
+  id         String  @id @default(uuid())
+  name       String
+  code       String
+  grade      String // e.g., "Form 1", "Grade 10", "Year 1"
+  stream     String? // e.g., "A", "B", "East", "West"
+  capacity   Int     @default(40)
+  roomNumber String?
+
+  // Relations
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  // Students in this class
+  students User[] @relation("ClassStudents")
+
+  // Teachers assigned to this class
+  teachers ClassTeacher[]
+
+  // Subjects taught in this class
+  subjects ClassSubject[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, code, academicYearId])
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@map("classes")
+}
+
+// ============================================
+// SUBJECT MANAGEMENT
+// ============================================
+
+model Subject {
+  id          String          @id @default(uuid())
+  name        String
+  code        String
+  description String?
+  category    SubjectCategory @default(CORE)
+  credits     Int?
+
+  // Relations
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  // Classes offering this subject
+  classes ClassSubject[]
+
+  // Teachers teaching this subject
+  teachers TeacherSubject[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@index([departmentId])
+  @@map("subjects")
+}
+
+// ============================================
+// MANY-TO-MANY RELATIONSHIPS
+// ============================================
+
+// Class - Subject relationship
+model ClassSubject {
+  id String @id @default(uuid())
+
+  classId String
+  class   Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  // Additional info
+  lessonsPerWeek Int?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([classId, subjectId])
+  @@index([classId])
+  @@index([subjectId])
+  @@map("class_subjects")
+}
+
+// Teacher - Subject relationship
+model TeacherSubject {
+  id String @id @default(uuid())
+
+  teacherId String
+  teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  // Additional info
+  isPrimary Boolean @default(false) // Main subject for this teacher
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teacherId, subjectId])
+  @@index([teacherId])
+  @@index([subjectId])
+  @@map("teacher_subjects")
+}
+
+// Class - Teacher relationship (Class Teacher/Form Teacher)
+model ClassTeacher {
+  id String @id @default(uuid())
+
+  classId String
+  class   Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  teacherId String
+  teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  // Additional info
+  isClassTeacher Boolean @default(false) // Main class teacher
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([classId, teacherId])
+  @@index([classId])
+  @@index([teacherId])
+  @@map("class_teachers")
 }
 
 // ============================================

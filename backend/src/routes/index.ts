@@ -4,6 +4,8 @@ import userRoutes from './user.routes';
 import schoolRoutes from './school.routes';
 import departmentRoutes from './department.routes';
 import academicYearRoutes from './academicYear.routes';
+import classRoutes from './class.routes';
+import subjectRoutes from './subject.routes';
 
 const router = Router();
 
@@ -13,11 +15,12 @@ router.use('/users', userRoutes);
 router.use('/schools', schoolRoutes);
 router.use('/', departmentRoutes); // Departments use nested routes
 router.use('/', academicYearRoutes); // Academic years use nested routes
+router.use('/', classRoutes); // Classes use nested routes
+router.use('/', subjectRoutes); // Subjects use nested routes
 
 // Future routes will be added here
-// router.use('/classes', classRoutes);
-// router.use('/subjects', subjectRoutes);
-// router.use('/courses', courseRoutes);
+// router.use('/exams', examRoutes);
+// router.use('/assignments', assignmentRoutes);
 // etc...
 
 export default router;
