@@ -62,8 +62,9 @@ app.get('/', (req: Request, res: Response) => {
     });
 });
 
-// API v1 routes will go here
-// app.use('/api/v1', routes);
+// API v1 routes
+import routes from './routes';
+app.use('/api/v1', routes);
 
 // ============================================
 // ERROR HANDLING
