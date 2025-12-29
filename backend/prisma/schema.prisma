@@ -56,6 +56,14 @@ enum SubjectCategory {
   CO_CURRICULAR
 }
 
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+  SICK
+}
+
 // ============================================
 // USER MANAGEMENT
 // ============================================
@@ -100,6 +108,11 @@ model User {
   // Teaching Relations (Teachers)
   teachingSubjects TeacherSubject[]
   teachingClasses  ClassTeacher[]
+
+  // Attendance Relations
+  attendanceRecords   Attendance[]        @relation("StudentAttendance")
+  attendanceSummaries AttendanceSummary[] @relation("StudentAttendanceSummary")
+  markedAttendance    Attendance[]        @relation("AttendanceMarkedBy")
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -256,8 +269,8 @@ model Class {
   id         String  @id @default(uuid())
   name       String
   code       String
-  grade      String // e.g., "Form 1", "Grade 10", "Year 1"
-  stream     String? // e.g., "A", "B", "East", "West"
+  grade      String
+  stream     String?
   capacity   Int     @default(40)
   roomNumber String?
 
@@ -276,6 +289,10 @@ model Class {
 
   // Subjects taught in this class
   subjects ClassSubject[]
+
+  // Attendance
+  attendance          Attendance[]        @relation("ClassAttendance")
+  attendanceSummaries AttendanceSummary[] @relation("ClassAttendanceSummary")
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -311,6 +328,9 @@ model Subject {
 
   // Teachers teaching this subject
   teachers TeacherSubject[]
+
+  // Attendance
+  attendance Attendance[] @relation("SubjectAttendance")
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -360,7 +380,7 @@ model TeacherSubject {
   subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
   // Additional info
-  isPrimary Boolean @default(false) // Main subject for this teacher
+  isPrimary Boolean @default(false)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -372,7 +392,7 @@ model TeacherSubject {
   @@map("teacher_subjects")
 }
 
-// Class - Teacher relationship (Class Teacher/Form Teacher)
+// Class - Teacher relationship
 model ClassTeacher {
   id String @id @default(uuid())
 
@@ -383,7 +403,7 @@ model ClassTeacher {
   teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
   // Additional info
-  isClassTeacher Boolean @default(false) // Main class teacher
+  isClassTeacher Boolean @default(false)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -396,7 +416,87 @@ model ClassTeacher {
 }
 
 // ============================================
+// ATTENDANCE MANAGEMENT
+// ============================================
+
+// Daily Attendance Record
+model Attendance {
+  id String @id @default(uuid())
+
+  // Student Information
+  studentId String
+  student   User   @relation("StudentAttendance", fields: [studentId], references: [id], onDelete: Cascade)
+
+  // Class Information
+  classId String
+  class   Class  @relation("ClassAttendance", fields: [classId], references: [id], onDelete: Cascade)
+
+  // Attendance Details
+  date    DateTime
+  status  AttendanceStatus
+  remarks String?
+
+  // Time tracking
+  checkInTime  DateTime?
+  checkOutTime DateTime?
+
+  // Subject-specific (if period-based)
+  subjectId String?
+  subject   Subject? @relation("SubjectAttendance", fields: [subjectId], references: [id], onDelete: SetNull)
+
+  // Marked by
+  markedById String
+  markedBy   User   @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, classId, date, subjectId])
+  @@index([studentId])
+  @@index([classId])
+  @@index([date])
+  @@index([status])
+  @@map("attendance")
+}
+
+// Attendance Summary (for quick stats)
+model AttendanceSummary {
+  id String @id @default(uuid())
+
+  studentId String
+  student   User   @relation("StudentAttendanceSummary", fields: [studentId], references: [id], onDelete: Cascade)
+
+  classId String
+  class   Class  @relation("ClassAttendanceSummary", fields: [classId], references: [id], onDelete: Cascade)
+
+  // Period (month/term)
+  month Int
+  year  Int
+
+  // Counts
+  totalDays   Int @default(0)
+  presentDays Int @default(0)
+  absentDays  Int @default(0)
+  lateDays    Int @default(0)
+  excusedDays Int @default(0)
+
+  // Percentage
+  attendanceRate Float @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, classId, month, year])
+  @@index([studentId])
+  @@index([classId])
+  @@index([year, month])
+  @@map("attendance_summaries")
+}
+
+// ============================================
 // INDEXES FOR PERFORMANCE
 // ============================================
 
-// Additional indexes will be added as needed
+// Additional indexes are defined inline above
