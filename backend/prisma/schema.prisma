@@ -1,5 +1,4 @@
 // This is your Prisma schema file
-// Learn more: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -64,6 +63,44 @@ enum AttendanceStatus {
   SICK
 }
 
+enum AssignmentStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  ARCHIVED
+}
+
+enum SubmissionStatus {
+  NOT_SUBMITTED
+  SUBMITTED
+  LATE
+  GRADED
+}
+
+enum ExamType {
+  CAT
+  MIDTERM
+  FINAL
+  PRACTICAL
+  QUIZ
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  SHORT_ANSWER
+  ESSAY
+  FILL_IN_BLANK
+}
+
+enum ExamStatus {
+  DRAFT
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  GRADED
+}
+
 // ============================================
 // USER MANAGEMENT
 // ============================================
@@ -113,6 +150,15 @@ model User {
   attendanceRecords   Attendance[]        @relation("StudentAttendance")
   attendanceSummaries AttendanceSummary[] @relation("StudentAttendanceSummary")
   markedAttendance    Attendance[]        @relation("AttendanceMarkedBy")
+
+  // Assignment Relations
+  createdAssignments Assignment[] @relation("AssignmentCreatedBy")
+  submissions        Submission[] @relation("StudentSubmissions")
+  gradedSubmissions  Submission[] @relation("SubmissionGradedBy")
+
+  // Examination Relations
+  createdExams Exam[]       @relation("ExamCreatedBy")
+  examResults  ExamResult[] @relation("StudentExamResults")
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -294,6 +340,12 @@ model Class {
   attendance          Attendance[]        @relation("ClassAttendance")
   attendanceSummaries AttendanceSummary[] @relation("ClassAttendanceSummary")
 
+  // Assignments
+  assignments Assignment[] @relation("ClassAssignments")
+
+  // Exams
+  exams Exam[] @relation("ClassExams")
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -332,6 +384,12 @@ model Subject {
   // Attendance
   attendance Attendance[] @relation("SubjectAttendance")
 
+  // Assignments
+  assignments Assignment[] @relation("SubjectAssignments")
+
+  // Exams
+  exams Exam[] @relation("SubjectExams")
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -346,7 +404,6 @@ model Subject {
 // MANY-TO-MANY RELATIONSHIPS
 // ============================================
 
-// Class - Subject relationship
 model ClassSubject {
   id String @id @default(uuid())
 
@@ -356,10 +413,8 @@ model ClassSubject {
   subjectId String
   subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
-  // Additional info
   lessonsPerWeek Int?
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -369,7 +424,6 @@ model ClassSubject {
   @@map("class_subjects")
 }
 
-// Teacher - Subject relationship
 model TeacherSubject {
   id String @id @default(uuid())
 
@@ -379,10 +433,8 @@ model TeacherSubject {
   subjectId String
   subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
-  // Additional info
   isPrimary Boolean @default(false)
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -392,7 +444,6 @@ model TeacherSubject {
   @@map("teacher_subjects")
 }
 
-// Class - Teacher relationship
 model ClassTeacher {
   id String @id @default(uuid())
 
@@ -402,10 +453,8 @@ model ClassTeacher {
   teacherId String
   teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
-  // Additional info
   isClassTeacher Boolean @default(false)
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -419,36 +468,28 @@ model ClassTeacher {
 // ATTENDANCE MANAGEMENT
 // ============================================
 
-// Daily Attendance Record
 model Attendance {
   id String @id @default(uuid())
 
-  // Student Information
   studentId String
   student   User   @relation("StudentAttendance", fields: [studentId], references: [id], onDelete: Cascade)
 
-  // Class Information
   classId String
   class   Class  @relation("ClassAttendance", fields: [classId], references: [id], onDelete: Cascade)
 
-  // Attendance Details
   date    DateTime
   status  AttendanceStatus
   remarks String?
 
-  // Time tracking
   checkInTime  DateTime?
   checkOutTime DateTime?
 
-  // Subject-specific (if period-based)
   subjectId String?
   subject   Subject? @relation("SubjectAttendance", fields: [subjectId], references: [id], onDelete: SetNull)
 
-  // Marked by
   markedById String
   markedBy   User   @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -460,7 +501,6 @@ model Attendance {
   @@map("attendance")
 }
 
-// Attendance Summary (for quick stats)
 model AttendanceSummary {
   id String @id @default(uuid())
 
@@ -470,21 +510,17 @@ model AttendanceSummary {
   classId String
   class   Class  @relation("ClassAttendanceSummary", fields: [classId], references: [id], onDelete: Cascade)
 
-  // Period (month/term)
   month Int
   year  Int
 
-  // Counts
   totalDays   Int @default(0)
   presentDays Int @default(0)
   absentDays  Int @default(0)
   lateDays    Int @default(0)
   excusedDays Int @default(0)
 
-  // Percentage
   attendanceRate Float @default(0)
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -496,7 +532,210 @@ model AttendanceSummary {
 }
 
 // ============================================
-// INDEXES FOR PERFORMANCE
+// ASSIGNMENT & SUBMISSION MANAGEMENT
 // ============================================
 
-// Additional indexes are defined inline above
+model Assignment {
+  id String @id @default(uuid())
+
+  title        String
+  description  String?
+  instructions String?
+
+  totalPoints         Int      @default(100)
+  passingPoints       Int?
+  dueDate             DateTime
+  allowLateSubmission Boolean  @default(true)
+  latePenalty         Float?
+
+  status AssignmentStatus @default(DRAFT)
+
+  classId String
+  class   Class  @relation("ClassAssignments", fields: [classId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation("SubjectAssignments", fields: [subjectId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User   @relation("AssignmentCreatedBy", fields: [createdById], references: [id])
+
+  attachments String[]
+
+  submissions Submission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([classId])
+  @@index([subjectId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("assignments")
+}
+
+model Submission {
+  id String @id @default(uuid())
+
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  studentId String
+  student   User   @relation("StudentSubmissions", fields: [studentId], references: [id], onDelete: Cascade)
+
+  status      SubmissionStatus @default(NOT_SUBMITTED)
+  content     String?
+  attachments String[]
+
+  submittedAt DateTime?
+  isLate      Boolean   @default(false)
+
+  points     Int?
+  feedback   String?
+  gradedAt   DateTime?
+  gradedById String?
+  gradedBy   User?     @relation("SubmissionGradedBy", fields: [gradedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assignmentId, studentId])
+  @@index([assignmentId])
+  @@index([studentId])
+  @@index([status])
+  @@map("submissions")
+}
+
+// ============================================
+// EXAMINATION SYSTEM
+// ============================================
+
+model Exam {
+  id          String @id @default(uuid())
+  title       String
+  description String?
+  instructions String?
+
+  // Exam Details
+  examType     ExamType
+  totalMarks   Int      @default(100)
+  passingMarks Int?
+  duration     Int // Duration in minutes
+
+  startTime DateTime
+  endTime   DateTime
+
+  status ExamStatus @default(DRAFT)
+
+  // Settings
+  shuffleQuestions Boolean @default(false)
+  showResults      Boolean @default(false)
+  allowReview      Boolean @default(true)
+
+  // Relations
+  classId String
+  class   Class  @relation("ClassExams", fields: [classId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation("SubjectExams", fields: [subjectId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User   @relation("ExamCreatedBy", fields: [createdById], references: [id])
+
+  // Questions and Results
+  questions ExamQuestion[]
+  results   ExamResult[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([classId])
+  @@index([subjectId])
+  @@index([status])
+  @@index([startTime])
+  @@map("exams")
+}
+
+model ExamQuestion {
+  id String @id @default(uuid())
+
+  examId String
+  exam   Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  questionType QuestionType
+  questionText String
+  marks        Int          @default(1)
+  order        Int
+
+  // For Multiple Choice
+  options       String[] // Array of options
+  correctAnswer String? // For objective questions
+
+  // For descriptive
+  sampleAnswer String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  answers ExamAnswer[]
+
+  @@index([examId])
+  @@map("exam_questions")
+}
+
+model ExamResult {
+  id String @id @default(uuid())
+
+  examId String
+  exam   Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  studentId String
+  student   User   @relation("StudentExamResults", fields: [studentId], references: [id], onDelete: Cascade)
+
+  // Result Details
+  startedAt   DateTime?
+  submittedAt DateTime?
+  duration    Int? // Actual time taken in minutes
+
+  score      Int    @default(0)
+  totalMarks Int
+  percentage Float  @default(0)
+  grade      String?
+
+  passed Boolean @default(false)
+
+  // Answers
+  answers ExamAnswer[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([examId, studentId])
+  @@index([examId])
+  @@index([studentId])
+  @@map("exam_results")
+}
+
+model ExamAnswer {
+  id String @id @default(uuid())
+
+  resultId String
+  result   ExamResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+
+  questionId String
+  question   ExamQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  answer        String?
+  isCorrect     Boolean?
+  marksObtained Int      @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resultId])
+  @@index([questionId])
+  @@map("exam_answers")
+}
