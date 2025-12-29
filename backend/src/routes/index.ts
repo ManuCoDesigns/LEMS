@@ -9,6 +9,7 @@ import subjectRoutes from './subject.routes';
 import attendanceRoutes from './attendance.routes';
 import assignmentRoutes from './assignment.routes';
 import examRoutes from './exam.routes';
+import gradeRoutes from './grade.routes';
 
 const router = Router();
 
@@ -23,9 +24,9 @@ router.use('/', subjectRoutes);
 router.use('/', attendanceRoutes);
 router.use('/', assignmentRoutes);
 router.use('/', examRoutes);
+router.use('/', gradeRoutes);
 
 // Future routes
-// router.use('/grades', gradeRoutes);
 // router.use('/analytics', analyticsRoutes);
 // router.use('/communications', communicationRoutes);
 // router.use('/finance', financeRoutes);

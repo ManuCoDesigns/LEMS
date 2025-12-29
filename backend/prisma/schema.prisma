@@ -101,6 +101,22 @@ enum ExamStatus {
   GRADED
 }
 
+enum GradingScale {
+  LETTER // A, B, C, D, F
+  PERCENTAGE // 0-100%
+  GPA // 0.0-4.0
+  POINTS // Custom points
+}
+
+enum TermType {
+  TERM_1
+  TERM_2
+  TERM_3
+  SEMESTER_1
+  SEMESTER_2
+  ANNUAL
+}
+
 // ============================================
 // USER MANAGEMENT
 // ============================================
@@ -160,6 +176,11 @@ model User {
   createdExams Exam[]       @relation("ExamCreatedBy")
   examResults  ExamResult[] @relation("StudentExamResults")
 
+  // Grading Relations
+  grades      Grade[]      @relation("StudentGrades")
+  reportCards ReportCard[] @relation("StudentReportCards")
+  transcripts Transcript[] @relation("StudentTranscripts")
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -210,11 +231,12 @@ model School {
   principalName String?
 
   // Relations
-  users         User[]
-  departments   Department[]
-  academicYears AcademicYear[]
-  classes       Class[]
-  subjects      Subject[]
+  users          User[]
+  departments    Department[]
+  academicYears  AcademicYear[]
+  classes        Class[]
+  subjects       Subject[]
+  gradingSchemes GradingScheme[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -270,8 +292,10 @@ model AcademicYear {
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  terms   Term[]
-  classes Class[]
+  terms       Term[]
+  classes     Class[]
+  grades      Grade[]
+  reportCards ReportCard[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -297,6 +321,9 @@ model Term {
   // Relations
   academicYearId String
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  grades      Grade[]
+  reportCards ReportCard[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -346,6 +373,10 @@ model Class {
   // Exams
   exams Exam[] @relation("ClassExams")
 
+  // Grading
+  grades      Grade[]      @relation("ClassGrades")
+  reportCards ReportCard[] @relation("ClassReportCards")
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -389,6 +420,9 @@ model Subject {
 
   // Exams
   exams Exam[] @relation("SubjectExams")
+
+  // Grading
+  grades Grade[] @relation("SubjectGrades")
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -610,9 +644,9 @@ model Submission {
 // ============================================
 
 model Exam {
-  id          String @id @default(uuid())
-  title       String
-  description String?
+  id           String  @id @default(uuid())
+  title        String
+  description  String?
   instructions String?
 
   // Exam Details
@@ -698,9 +732,9 @@ model ExamResult {
   submittedAt DateTime?
   duration    Int? // Actual time taken in minutes
 
-  score      Int    @default(0)
+  score      Int     @default(0)
   totalMarks Int
-  percentage Float  @default(0)
+  percentage Float   @default(0)
   grade      String?
 
   passed Boolean @default(false)
@@ -738,4 +772,192 @@ model ExamAnswer {
   @@index([resultId])
   @@index([questionId])
   @@map("exam_answers")
+}
+
+// ============================================
+// GRADING SYSTEM
+// ============================================
+
+model GradingScheme {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  scale       GradingScale @default(LETTER)
+  isDefault   Boolean      @default(false)
+
+  // Relations
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  boundaries GradeBoundary[]
+  grades     Grade[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@map("grading_schemes")
+}
+
+model GradeBoundary {
+  id String @id @default(uuid())
+
+  schemeId String
+  scheme   GradingScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+
+  grade       String // A, B, C, etc.
+  minScore    Float
+  maxScore    Float
+  gradePoint  Float? // For GPA calculation
+  description String? // Excellent, Good, Fair, etc.
+  passStatus  Boolean @default(true)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schemeId])
+  @@map("grade_boundaries")
+}
+
+model Grade {
+  id String @id @default(uuid())
+
+  studentId String
+  student   User   @relation("StudentGrades", fields: [studentId], references: [id], onDelete: Cascade)
+
+  classId String
+  class   Class  @relation("ClassGrades", fields: [classId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation("SubjectGrades", fields: [subjectId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  termId String?
+  term   Term?   @relation(fields: [termId], references: [id], onDelete: SetNull)
+
+  termType TermType
+
+  // Grading Scheme
+  schemeId String?
+  scheme   GradingScheme? @relation(fields: [schemeId], references: [id], onDelete: SetNull)
+
+  // Scores
+  assignmentScore Float   @default(0)
+  examScore       Float   @default(0)
+  totalScore      Float   @default(0)
+  maxScore        Float   @default(100)
+  percentage      Float   @default(0)
+  letterGrade     String? // A, B, C, etc.
+  gradePoint      Float? // For GPA
+  remarks         String?
+
+  // Status
+  isPassed Boolean @default(false)
+  isLocked Boolean @default(false) // Prevent changes after report card generation
+  position Int? // Class position
+  outOf    Int? // Total students
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, subjectId, academicYearId, termType])
+  @@index([studentId])
+  @@index([classId])
+  @@index([subjectId])
+  @@index([academicYearId])
+  @@index([termId])
+  @@map("grades")
+}
+
+model ReportCard {
+  id String @id @default(uuid())
+
+  studentId String
+  student   User   @relation("StudentReportCards", fields: [studentId], references: [id], onDelete: Cascade)
+
+  classId String
+  class   Class  @relation("ClassReportCards", fields: [classId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  termId String?
+  term   Term?   @relation(fields: [termId], references: [id], onDelete: SetNull)
+
+  termType TermType
+
+  // Overall Performance
+  totalMarks   Float   @default(0)
+  maxMarks     Float   @default(0)
+  averageScore Float   @default(0)
+  overallGrade String?
+  overallGPA   Float?
+  position     Int?
+  outOf        Int?
+  promoted     Boolean @default(false)
+
+  // Attendance Summary
+  totalDays      Int   @default(0)
+  daysPresent    Int   @default(0)
+  daysAbsent     Int   @default(0)
+  attendanceRate Float @default(0)
+
+  // Comments
+  classTeacherComment String?
+  principalComment    String?
+
+  // Status
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  generatedBy String?
+
+  // PDF
+  pdfUrl String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, academicYearId, termType])
+  @@index([studentId])
+  @@index([classId])
+  @@index([academicYearId])
+  @@index([termId])
+  @@map("report_cards")
+}
+
+model Transcript {
+  id String @id @default(uuid())
+
+  studentId String @unique
+  student   User   @relation("StudentTranscripts", fields: [studentId], references: [id], onDelete: Cascade)
+
+  // Cumulative Data
+  totalCredits  Float   @default(0)
+  earnedCredits Float   @default(0)
+  cumulativeGPA Float   @default(0)
+  overallGrade  String?
+
+  // Academic Summary
+  yearsCompleted Int @default(0)
+  termsCompleted Int @default(0)
+
+  // Status
+  isComplete     Boolean   @default(false)
+  graduationDate DateTime?
+
+  // PDF
+  pdfUrl String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@map("transcripts")
 }
