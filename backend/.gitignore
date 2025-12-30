@@ -1,5 +1,76 @@
-node_modules
-# Keep environment variables out of version control
-.env
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
 
-/generated/prisma
+# Environment Variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Build Output
+dist/
+build/
+.next/
+out/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/
+postgres-data/
+mongo-data/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Misc
+.cache/
+temp/
+tmp/
+*.tmp
+.eslintcache
+.parcel-cache
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Prisma
+prisma/migrations/*
+!prisma/migrations/.gitkeep
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
