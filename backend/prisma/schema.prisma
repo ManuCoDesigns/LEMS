@@ -102,10 +102,10 @@ enum ExamStatus {
 }
 
 enum GradingScale {
-  LETTER // A, B, C, D, F
-  PERCENTAGE // 0-100%
-  GPA // 0.0-4.0
-  POINTS // Custom points
+  LETTER
+  PERCENTAGE
+  GPA
+  POINTS
 }
 
 enum TermType {
@@ -115,6 +115,67 @@ enum TermType {
   SEMESTER_1
   SEMESTER_2
   ANNUAL
+}
+
+enum AnalyticsType {
+  STUDENT_PERFORMANCE
+  CLASS_PERFORMANCE
+  SUBJECT_PERFORMANCE
+  ATTENDANCE_TREND
+  ASSIGNMENT_COMPLETION
+  EXAM_RESULTS
+}
+
+enum NotificationType {
+  ANNOUNCEMENT
+  ASSIGNMENT_CREATED
+  ASSIGNMENT_GRADED
+  EXAM_SCHEDULED
+  EXAM_GRADED
+  ATTENDANCE_ALERT
+  REPORT_CARD_PUBLISHED
+  FEE_REMINDER
+  GENERAL
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+}
+
+enum FeeCategory {
+  TUITION
+  BOARDING
+  TRANSPORT
+  EXAMINATION
+  LIBRARY
+  SPORTS
+  ACTIVITY
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CARD
+  CHEQUE
 }
 
 // ============================================
@@ -181,6 +242,22 @@ model User {
   reportCards ReportCard[] @relation("StudentReportCards")
   transcripts Transcript[] @relation("StudentTranscripts")
 
+  // Analytics Relations
+  analytics Analytics[] @relation("StudentAnalytics")
+
+  // Notification Relations
+  receivedNotifications Notification[] @relation("ReceivedNotifications")
+  sentNotifications     Notification[] @relation("SentNotifications")
+
+  // Communication Relations
+  createdAnnouncements Announcement[] @relation("AnnouncementsCreated")
+  sentMessages         Message[]      @relation("MessagesSent")
+  receivedMessages     Message[]      @relation("MessagesReceived")
+
+  // Financial Relations
+  feeAssignments FeeAssignment[] @relation("StudentFeeAssignments")
+  payments       Payment[]       @relation("StudentPayments")
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -237,6 +314,10 @@ model School {
   classes        Class[]
   subjects       Subject[]
   gradingSchemes GradingScheme[]
+  analytics      Analytics[]
+  notifications  Notification[]
+  announcements  Announcement[]
+  feeStructures  FeeStructure[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -377,6 +458,14 @@ model Class {
   grades      Grade[]      @relation("ClassGrades")
   reportCards ReportCard[] @relation("ClassReportCards")
 
+  // Analytics & Communication
+  analytics     Analytics[]
+  notifications Notification[]
+  announcements Announcement[]
+
+  // Fee Assignments
+  feeAssignments FeeAssignment[] @relation("ClassFeeAssignments")
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -423,6 +512,9 @@ model Subject {
 
   // Grading
   grades Grade[] @relation("SubjectGrades")
+
+  // Analytics
+  analytics Analytics[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -649,23 +741,20 @@ model Exam {
   description  String?
   instructions String?
 
-  // Exam Details
   examType     ExamType
   totalMarks   Int      @default(100)
   passingMarks Int?
-  duration     Int // Duration in minutes
+  duration     Int
 
   startTime DateTime
   endTime   DateTime
 
   status ExamStatus @default(DRAFT)
 
-  // Settings
   shuffleQuestions Boolean @default(false)
   showResults      Boolean @default(false)
   allowReview      Boolean @default(true)
 
-  // Relations
   classId String
   class   Class  @relation("ClassExams", fields: [classId], references: [id], onDelete: Cascade)
 
@@ -675,11 +764,9 @@ model Exam {
   createdById String
   createdBy   User   @relation("ExamCreatedBy", fields: [createdById], references: [id])
 
-  // Questions and Results
   questions ExamQuestion[]
   results   ExamResult[]
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -696,19 +783,14 @@ model ExamQuestion {
   examId String
   exam   Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
 
-  questionType QuestionType
-  questionText String
-  marks        Int          @default(1)
-  order        Int
+  questionType  QuestionType
+  questionText  String
+  marks         Int          @default(1)
+  order         Int
+  options       String[]
+  correctAnswer String?
+  sampleAnswer  String?
 
-  // For Multiple Choice
-  options       String[] // Array of options
-  correctAnswer String? // For objective questions
-
-  // For descriptive
-  sampleAnswer String?
-
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -727,22 +809,18 @@ model ExamResult {
   studentId String
   student   User   @relation("StudentExamResults", fields: [studentId], references: [id], onDelete: Cascade)
 
-  // Result Details
   startedAt   DateTime?
   submittedAt DateTime?
-  duration    Int? // Actual time taken in minutes
+  duration    Int?
 
   score      Int     @default(0)
   totalMarks Int
   percentage Float   @default(0)
   grade      String?
+  passed     Boolean @default(false)
 
-  passed Boolean @default(false)
-
-  // Answers
   answers ExamAnswer[]
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -765,7 +843,6 @@ model ExamAnswer {
   isCorrect     Boolean?
   marksObtained Int      @default(0)
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -785,14 +862,12 @@ model GradingScheme {
   scale       GradingScale @default(LETTER)
   isDefault   Boolean      @default(false)
 
-  // Relations
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   boundaries GradeBoundary[]
   grades     Grade[]
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -806,14 +881,13 @@ model GradeBoundary {
   schemeId String
   scheme   GradingScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
 
-  grade       String // A, B, C, etc.
+  grade       String
   minScore    Float
   maxScore    Float
-  gradePoint  Float? // For GPA calculation
-  description String? // Excellent, Good, Fair, etc.
+  gradePoint  Float?
+  description String?
   passStatus  Boolean @default(true)
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -836,32 +910,27 @@ model Grade {
   academicYearId String
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
-  termId String?
-  term   Term?   @relation(fields: [termId], references: [id], onDelete: SetNull)
-
+  termId   String?
+  term     Term?    @relation(fields: [termId], references: [id], onDelete: SetNull)
   termType TermType
 
-  // Grading Scheme
   schemeId String?
   scheme   GradingScheme? @relation(fields: [schemeId], references: [id], onDelete: SetNull)
 
-  // Scores
   assignmentScore Float   @default(0)
   examScore       Float   @default(0)
   totalScore      Float   @default(0)
   maxScore        Float   @default(100)
   percentage      Float   @default(0)
-  letterGrade     String? // A, B, C, etc.
-  gradePoint      Float? // For GPA
+  letterGrade     String?
+  gradePoint      Float?
   remarks         String?
 
-  // Status
   isPassed Boolean @default(false)
-  isLocked Boolean @default(false) // Prevent changes after report card generation
-  position Int? // Class position
-  outOf    Int? // Total students
+  isLocked Boolean @default(false)
+  position Int?
+  outOf    Int?
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -886,12 +955,10 @@ model ReportCard {
   academicYearId String
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
-  termId String?
-  term   Term?   @relation(fields: [termId], references: [id], onDelete: SetNull)
-
+  termId   String?
+  term     Term?    @relation(fields: [termId], references: [id], onDelete: SetNull)
   termType TermType
 
-  // Overall Performance
   totalMarks   Float   @default(0)
   maxMarks     Float   @default(0)
   averageScore Float   @default(0)
@@ -901,25 +968,19 @@ model ReportCard {
   outOf        Int?
   promoted     Boolean @default(false)
 
-  // Attendance Summary
   totalDays      Int   @default(0)
   daysPresent    Int   @default(0)
   daysAbsent     Int   @default(0)
   attendanceRate Float @default(0)
 
-  // Comments
   classTeacherComment String?
   principalComment    String?
 
-  // Status
   isPublished Boolean   @default(false)
   publishedAt DateTime?
   generatedBy String?
+  pdfUrl      String?
 
-  // PDF
-  pdfUrl String?
-
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -937,27 +998,273 @@ model Transcript {
   studentId String @unique
   student   User   @relation("StudentTranscripts", fields: [studentId], references: [id], onDelete: Cascade)
 
-  // Cumulative Data
   totalCredits  Float   @default(0)
   earnedCredits Float   @default(0)
   cumulativeGPA Float   @default(0)
   overallGrade  String?
 
-  // Academic Summary
   yearsCompleted Int @default(0)
   termsCompleted Int @default(0)
 
-  // Status
   isComplete     Boolean   @default(false)
   graduationDate DateTime?
+  pdfUrl         String?
 
-  // PDF
-  pdfUrl String?
-
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([studentId])
   @@map("transcripts")
 }
+
+// ============================================
+// ANALYTICS SYSTEM
+// ============================================
+
+model Analytics {
+  id String @id @default(uuid())
+
+  type        AnalyticsType
+  title       String
+  description String?
+
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  studentId String?
+  student   User?   @relation("StudentAnalytics", fields: [studentId], references: [id], onDelete: Cascade)
+
+  data Json
+
+  startDate DateTime
+  endDate   DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([classId])
+  @@index([subjectId])
+  @@index([studentId])
+  @@index([type])
+  @@map("analytics")
+}
+
+// ============================================
+// NOTIFICATION & COMMUNICATION SYSTEM
+// ============================================
+
+model Notification {
+  id String @id @default(uuid())
+
+  type    NotificationType
+  channel NotificationChannel @default(IN_APP)
+  status  NotificationStatus  @default(UNREAD)
+
+  title   String
+  message String
+  link    String?
+
+  recipientId String
+  recipient   User   @relation("ReceivedNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  senderId String?
+  sender   User?   @relation("SentNotifications", fields: [senderId], references: [id], onDelete: SetNull)
+
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  metadata Json?
+  readAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([recipientId])
+  @@index([senderId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model Announcement {
+  id String @id @default(uuid())
+
+  title   String
+  content String
+
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  targetRoles UserRole[]
+  isPublic    Boolean    @default(false)
+  priority    String     @default("NORMAL")
+
+  createdById String
+  createdBy   User   @relation("AnnouncementsCreated", fields: [createdById], references: [id])
+
+  isActive Boolean @default(true)
+
+  publishAt DateTime?
+  expiresAt DateTime?
+
+  attachments String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([classId])
+  @@index([createdById])
+  @@index([isActive])
+  @@map("announcements")
+}
+
+model Message {
+  id String @id @default(uuid())
+
+  subject String?
+  content String
+
+  senderId String
+  sender   User   @relation("MessagesSent", fields: [senderId], references: [id], onDelete: Cascade)
+
+  recipientId String
+  recipient   User   @relation("MessagesReceived", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  threadId String?
+  thread   Message?  @relation("MessageThread", fields: [threadId], references: [id], onDelete: Cascade)
+  replies  Message[] @relation("MessageThread")
+
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  isStarred Boolean   @default(false)
+
+  attachments String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([threadId])
+  @@index([isRead])
+  @@map("messages")
+}
+
+// ============================================
+// FINANCIAL MANAGEMENT SYSTEM
+// ============================================
+
+// Fee Structures
+model FeeStructure {
+  id          String          @id @default(uuid())
+  name        String
+  description String?
+  category    FeeCategory
+  amount      Float
+  isOptional  Boolean         @default(false)
+  isRecurring Boolean         @default(true) // Per term/year
+  schoolId    String
+  school      School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  assignments FeeAssignment[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([schoolId])
+  @@index([category])
+  @@map("fee_structures")
+}
+
+model FeeAssignment {
+  id             String        @id @default(uuid())
+  studentId      String
+  student        User          @relation("StudentFeeAssignments", fields: [studentId], references: [id], onDelete: Cascade)
+  classId        String?
+  class          Class?        @relation("ClassFeeAssignments", fields: [classId], references: [id], onDelete: SetNull)
+  feeStructureId String
+  feeStructure   FeeStructure  @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  // Amount details
+  totalAmount    Float
+  paidAmount     Float         @default(0)
+  balance        Float
+  discountAmount Float         @default(0)
+  discountReason String?
+  // Status
+  status         PaymentStatus @default(PENDING)
+  // Due date
+  dueDate        DateTime
+  // Academic period
+  academicYear   String?
+  term           String?
+  payments       Payment[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([studentId])
+  @@index([classId])
+  @@index([feeStructureId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("fee_assignments")
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  studentId       String
+  student         User          @relation("StudentPayments", fields: [studentId], references: [id], onDelete: Cascade)
+  feeAssignmentId String
+  feeAssignment   FeeAssignment @relation(fields: [feeAssignmentId], references: [id], onDelete: Cascade)
+  // Payment details
+  amount          Float
+  paymentMethod   PaymentMethod
+  paymentDate     DateTime      @default(now())
+  transactionRef  String?       @unique
+  paymentStatus   PaymentStatus @default(PAID)
+  // Bank/Mobile details
+  bankName        String?
+  accountNumber   String?
+  chequeNumber    String?
+  mobileNumber    String?
+  // Receipt
+  receiptNumber   String        @unique
+  receiptUrl      String?
+  // Notes
+  notes           String?
+  // Processed by
+  processedBy     String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([studentId])
+  @@index([feeAssignmentId])
+  @@index([paymentDate])
+  @@index([paymentStatus])
+  @@map("payments")
+}
+
+// ============================================
+// END OF SCHEMA
+// ============================================
+
+// Recent Edits Summary:
+// - Added financial management models: FeeStructure, FeeAssignment, Payment.
+// - Established relationships between users, classes, and fee assignments.
+//- Included payment details and statuses.
+//- Indexed relevant fields for efficient querying.
+// ============================================
+
+// END OF FILE

@@ -10,6 +10,9 @@ import attendanceRoutes from './attendance.routes';
 import assignmentRoutes from './assignment.routes';
 import examRoutes from './exam.routes';
 import gradeRoutes from './grade.routes';
+import analyticsRoutes from './analytics.routes';
+import notificationRoutes from './notification.routes';
+import financeRoutes from './finance.routes';
 
 const router = Router();
 
@@ -25,10 +28,8 @@ router.use('/', attendanceRoutes);
 router.use('/', assignmentRoutes);
 router.use('/', examRoutes);
 router.use('/', gradeRoutes);
-
-// Future routes
-// router.use('/analytics', analyticsRoutes);
-// router.use('/communications', communicationRoutes);
-// router.use('/finance', financeRoutes);
+router.use('/', analyticsRoutes);
+router.use('/', notificationRoutes);
+router.use('/', financeRoutes);
 
 export default router;
